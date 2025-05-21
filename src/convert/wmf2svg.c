@@ -151,44 +151,67 @@ int wmf2svg_draw (PlotData* pdata)
 	if (pdata->options.Description) ddata->Description = pdata->options.Description;
 	else                            ddata->Description = Default_Description;
 
+	// Assign the scanned bounding box to the device data.
+	// pdata->options.bbox is populated by wmf_scan() earlier.
 	ddata->bbox = pdata->options.bbox;
 
-	wmf_size (API,&wmf_width,&wmf_height);
+	// Calculate base dimensions for the SVG canvas from the bounding box scan.
+	// These dimensions represent the actual extent of the WMF content.
+	float base_width_from_bbox = ddata->bbox.BR.x - ddata->bbox.TL.x;
+	float base_height_from_bbox = ddata->bbox.BR.y - ddata->bbox.TL.y;
 
-	if ((wmf_width <= 0) || (wmf_height <= 0))
-	{	fputs ("Bad image size - but this error shouldn't occur...\n",stderr);
-		status = 1;
-		wmf_api_destroy (API);
-		return (status);
+	// Ensure base dimensions are positive to prevent errors in scaling logic.
+	if (base_width_from_bbox <= 0) base_width_from_bbox = 1.0f;
+	if (base_height_from_bbox <= 0) base_height_from_bbox = 1.0f;
+	
+	// The wmf_size() function is NOT used here to determine base_width/base_height
+	// as we want the SVG canvas to be based on the actual content extents (bbox).
+	// float wmf_api_width, wmf_api_height;
+	// wmf_size (API, &wmf_api_width, &wmf_api_height); // This might provide different values
+
+	max_flags = pdata->max_flags; // User-specified scaling flags from command-line
+
+	// Determine if scaling is needed based on max_width/max_height command-line options.
+	// The comparison is against the content's actual span (base_width_from_bbox, base_height_from_bbox).
+	if ((base_width_from_bbox  > (float) pdata->max_width )
+	 || (base_height_from_bbox > (float) pdata->max_height))
+	{	
+		// If content exceeds specified max dimensions and no specific scaling flag is set,
+		// default to preserving aspect ratio (WMF2SVG_MAXPECT).
+		if (max_flags == 0) max_flags = WMF2SVG_MAXPECT;
 	}
 
-	max_flags = pdata->max_flags;
+	if (max_flags == WMF2SVG_MAXPECT) /* Scale the image to fit within max_width/max_height, preserving aspect ratio */
+	{	
+		float aspect_ratio_content = base_height_from_bbox / base_width_from_bbox;
+		// Calculate the aspect ratio of the bounding box defined by max_width and max_height.
+		// Ensure pdata->max_width is not zero to prevent division by zero.
+		float aspect_ratio_bounds = (pdata->max_width > 0) ? ((float) pdata->max_height / (float) pdata->max_width) : 0;
 
-	if ((wmf_width  > (float) pdata->max_width )
-	 || (wmf_height > (float) pdata->max_height))
-	{	if (max_flags == 0) max_flags = WMF2SVG_MAXPECT;
-	}
-
-	if (max_flags == WMF2SVG_MAXPECT) /* scale the image */
-	{	ratio_wmf = wmf_height / wmf_width;
-		ratio_bounds = (float) pdata->max_height / (float) pdata->max_width;
-
-		if (ratio_wmf > ratio_bounds)
-		{	ddata->height = pdata->max_height;
-			ddata->width  = (unsigned int) ((float) ddata->height / ratio_wmf);
+		if (pdata->max_width == 0 || pdata->max_height == 0 || aspect_ratio_bounds == 0) { // Avoid division by zero if max_width/height is 0
+			ddata->width = (unsigned int) ceil((double)base_width_from_bbox);
+			ddata->height = (unsigned int) ceil((double)base_height_from_bbox);
+		} else if (aspect_ratio_content > aspect_ratio_bounds) // Content is "taller" or "thinner" than the bounds' aspect ratio
+		{	
+			ddata->height = pdata->max_height;
+			ddata->width  = (unsigned int) ceil((float) ddata->height / aspect_ratio_content);
 		}
-		else
-		{	ddata->width  = pdata->max_width;
-			ddata->height = (unsigned int) ((float) ddata->width  * ratio_wmf);
+		else // Content is "wider" or "shorter" than the bounds' aspect ratio
+		{	
+			ddata->width  = pdata->max_width;
+			ddata->height = (unsigned int) ceil((float) ddata->width  * aspect_ratio_content);
 		}
 	}
-	else if (max_flags == WMF2SVG_MAXSIZE) /* bizarre option, really */
-	{	ddata->width  = pdata->max_width;
+	else if (max_flags == WMF2SVG_MAXSIZE) /* Scale image to max_width and max_height, potentially distorting aspect ratio */
+	{	
+		ddata->width  = pdata->max_width;
 		ddata->height = pdata->max_height;
 	}
-	else
-	{	ddata->width  = (unsigned int) ceil ((double) wmf_width );
-		ddata->height = (unsigned int) ceil ((double) wmf_height);
+	else // No scaling flags (--maxpect or --maxsize), or image dimensions are within specified max_width/max_height
+	{	
+		// Set SVG width/height attributes directly from the content's bounding box span.
+		ddata->width  = (unsigned int) ceil ((double) base_width_from_bbox );
+		ddata->height = (unsigned int) ceil ((double) base_height_from_bbox );
 	}
 
 	if (pdata->inline_images)

@@ -124,7 +124,7 @@ static svgPoint svg_translate (wmfAPI* API,wmfD_Coord d_pt)
 }
 
 static float svg_width (wmfAPI* API,float wmf_width)
-	/* wmf_svg_t* ddata = WMF_SVG_GetData (API); */ /* No longer needed */
+{	/* wmf_svg_t* ddata = WMF_SVG_GetData (API); */ /* No longer needed */
 
 	/* With viewBox, widths are in WMF's native coordinate system. */
 	return wmf_width;
