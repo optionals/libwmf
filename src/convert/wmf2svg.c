@@ -51,6 +51,8 @@ typedef struct
 	unsigned int max_height;
 
 	unsigned long max_flags;
+
+	char* svg_version; /* Added for --svg-version option */
 } PlotData;
 
 typedef struct _ImageContext ImageContext;
@@ -137,6 +139,7 @@ int wmf2svg_draw (PlotData* pdata)
 /* Okay, got this far, everything seems cool.
  */
 	ddata = WMF_SVG_GetData (API);
+	ddata->version_string = pdata->svg_version; /* Pass SVG version to device data */
 
 	if (pdata->out)
 	{	ddata->out = wmf_stream_create (API,pdata->out);
@@ -240,6 +243,8 @@ void wmf2svg_init (PlotData* pdata,int argc,char** argv)
 	pdata->max_height = 512;
 
 	pdata->max_flags = 0;
+
+	pdata->svg_version = "1.1"; /* Default SVG version */
 }
 
 void wmf2svg_help (PlotData* pdata)
@@ -256,6 +261,7 @@ Convert metafile image to W3C's scaleable vector graphic (SVG) format.\n\
   --maxheight=<h> where <h> is maximum height image may have.\n\
   --maxpect       scale image to maximum size keeping aspect.\n\
   --maxsize       scale image to maximum size.\n\
+  --svg-version=<ver> use SVG version <ver> (\"1.0\" or \"1.1\", default: \"1.1\").\n\
   --version       display version info and exit.\n\
   --help          display this help and exit.\n\
   --wmf-help      display wmf-related help and exit.\n\
@@ -291,6 +297,19 @@ int wmf2svg_args (PlotData* pdata)
 
 		if (strcmp (argv[arg],"-z") == 0)
 		{	pdata->svgz = 1;
+			continue;
+		}
+
+		if (strncmp (argv[arg],"--svg-version=",14) == 0)
+		{	char* version_arg = argv[arg]+14;
+			if (strcmp(version_arg, "1.0") == 0 || strcmp(version_arg, "1.1") == 0)
+			{	pdata->svg_version = version_arg;
+			}
+			else
+			{	fprintf (stderr,"usage: --svg-version=<ver>, where <ver> is \"1.0\" or \"1.1\".\n");
+				status = arg;
+				break;
+			}
 			continue;
 		}
 

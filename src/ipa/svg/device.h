@@ -65,11 +65,30 @@ static void wmf_svg_device_begin (wmfAPI* API)
 		ddata->height = (unsigned int) ceil (ddata->bbox.BR.y - ddata->bbox.TL.y);
 	}
 
-	wmf_stream_printf (API,out,"<?xml version=\"1.0\" standalone=\"no\"?>\n");
-	wmf_stream_printf (API,out,"<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 20001102//EN\"\n");
-	wmf_stream_printf (API,out,"\"http://www.w3.org/TR/2000/CR-SVG-20001102/DTD/svg-20001102.dtd\">\n");
+	float viewbox_x = ddata->bbox.TL.x;
+	float viewbox_y = ddata->bbox.TL.y;
+	float viewbox_width = ddata->bbox.BR.x - ddata->bbox.TL.x;
+	float viewbox_height = ddata->bbox.BR.y - ddata->bbox.TL.y;
 
-	wmf_stream_printf (API,out,"<svg width=\"%u\" height=\"%u\"\n",ddata->width,ddata->height);
+	wmf_stream_printf (API,out,"<?xml version=\"1.0\" standalone=\"no\"?>\n");
+
+	/* ddata->version_string is set by wmf2svg_draw from pdata->svg_version.
+	   Default is "1.1" as set in wmf2svg_init. */
+	if (ddata->version_string && strcmp(ddata->version_string, "1.0") == 0)
+	{
+		wmf_stream_printf (API,out,"<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 20001102//EN\"\n");
+		wmf_stream_printf (API,out,"\"http://www.w3.org/TR/2000/CR-SVG-20001102/DTD/svg-20001102.dtd\">\n");
+		wmf_stream_printf (API,out,"<svg width=\"%u\" height=\"%u\" viewBox=\"%f %f %f %f\" version=\"1.0\"\n",
+		                   ddata->width, ddata->height, viewbox_x, viewbox_y, viewbox_width, viewbox_height);
+	}
+	else /* SVG 1.1 or default */
+	{
+		wmf_stream_printf (API,out,"<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\"\n");
+		wmf_stream_printf (API,out,"\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n");
+		wmf_stream_printf (API,out,"<svg width=\"%u\" height=\"%u\" viewBox=\"%f %f %f %f\" version=\"1.1\"\n",
+		                   ddata->width, ddata->height, viewbox_x, viewbox_y, viewbox_width, viewbox_height);
+	}
+
 	wmf_stream_printf (API,out,"\txmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\">\n");
 
 	if (ddata->Description)
@@ -96,41 +115,24 @@ static svgPoint svg_translate (wmfAPI* API,wmfD_Coord d_pt)
 
 	svgPoint g_pt;
 
-	double x;
-	double y;
-
-	x = ((double) d_pt.x - (double) ddata->bbox.TL.x);
-	x /= ((double) ddata->bbox.BR.x - (double) ddata->bbox.TL.x);
-	x *= (double) ddata->width;
-
-	y = ((double) d_pt.y - (double) ddata->bbox.TL.y);
-	y /= ((double) ddata->bbox.BR.y - (double) ddata->bbox.TL.y);
-	y *= (double) ddata->height;
-
-	g_pt.x = (float) x;
-	g_pt.y = (float) y;
+	/* With viewBox, coordinates are in WMF's native system. */
+	/* The viewBox itself handles mapping to the output width/height. */
+	g_pt.x = (float) d_pt.x;
+	g_pt.y = (float) d_pt.y;
 
 	return (g_pt);
 }
 
 static float svg_width (wmfAPI* API,float wmf_width)
-{	wmf_svg_t* ddata = WMF_SVG_GetData (API);
+	/* wmf_svg_t* ddata = WMF_SVG_GetData (API); */ /* No longer needed */
 
-	double width;
-
-	width = (double) wmf_width * (double) ddata->width;
-	width /= ((double) ddata->bbox.BR.x - (double) ddata->bbox.TL.x);
-
-	return ((float) width);
+	/* With viewBox, widths are in WMF's native coordinate system. */
+	return wmf_width;
 }
 
 static float svg_height (wmfAPI* API,float wmf_height)
-{	wmf_svg_t* ddata = WMF_SVG_GetData (API);
+{	/* wmf_svg_t* ddata = WMF_SVG_GetData (API); */ /* No longer needed */
 
-	double height;
-
-	height = (double) wmf_height * (double) ddata->height;
-	height /= ((double) ddata->bbox.BR.y - (double) ddata->bbox.TL.y);
-
-	return ((float) height);
+	/* With viewBox, heights are in WMF's native coordinate system. */
+	return wmf_height;
 }

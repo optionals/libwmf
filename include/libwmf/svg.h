@@ -48,6 +48,8 @@ struct _wmf_svg_t
 	} image;
 
 	unsigned long flags;
+
+	char* version_string; /* For SVG version 1.0 or 1.1 */
 };
 
 #define WMF_SVG_GetData(Z) ((wmf_svg_t*)((Z)->device_data))

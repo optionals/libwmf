@@ -152,41 +152,51 @@ static void wmf_svg_draw_text (wmfAPI* API,wmfDrawText_t* draw_text)
 {	wmf_svg_t* ddata = WMF_SVG_GetData (API);
 
 	svgFont font;
-
 	svgPoint pt;
-
 	float font_height;
-
-	float sin_theta;
-	float cos_theta;
-
 	double theta;
-
+	float angle_degrees;
 	wmfStream* out = ddata->out;
+	unsigned int uMode;
+	const char* text_anchor_style;
+	const char* dominant_baseline_style;
 
 	WMF_DEBUG (API,"~~~~~~~~wmf_[svg_]draw_text");
 
 	if (out == 0) return;
 
 	pt = svg_translate (API,draw_text->pt);
-
 	font_height = svg_height (API,(float)  draw_text->font_height);
+	theta = -WMF_TEXT_ANGLE (draw_text->dc->font); /* WMF angle is CCW, SVG rotate is CW if positive */
+	angle_degrees = (float)(theta * 180.0 / PI);
 
-	theta = - WMF_TEXT_ANGLE (draw_text->dc->font);
+	uMode = WMF_DC_TEXTALIGN(draw_text->dc);
 
-	sin_theta = (float) sin (theta);
-	cos_theta = (float) cos (theta);
+	/* Horizontal Alignment */
+	if ((uMode & TA_CENTER) == TA_CENTER) {
+		text_anchor_style = "middle";
+	} else if ((uMode & TA_RIGHT) == TA_RIGHT) {
+		text_anchor_style = "end";
+	} else { /* TA_LEFT or default */
+		text_anchor_style = "start";
+	}
+
+	/* Vertical Alignment */
+	/* Note: SVG's default dominant-baseline is 'auto', which often resolves to 'alphabetic'.
+	   'alphabetic' is the WMF default (TA_BASELINE). */
+	if ((uMode & TA_TOP) == TA_TOP) {
+		dominant_baseline_style = "text-before-edge";
+	} else if ((uMode & TA_BOTTOM) == TA_BOTTOM) {
+		dominant_baseline_style = "text-after-edge";
+	} else { /* TA_BASELINE or default */
+		dominant_baseline_style = "alphabetic";
+	}
 
 	/* TODO: Scaling? */
 	/* TODO: Background color? */
 	/* TODO: string-length?? */
 
-	wmf_stream_printf (API,out,"<text ");
-
-/*	wmf_stream_printf (API,out,"x=\"%f\" ",pt.x);
-	wmf_stream_printf (API,out,"y=\"%f\" ",pt.y);
- */	wmf_stream_printf (API,out,"x=\"0\" ");
-	wmf_stream_printf (API,out,"y=\"0\" ");
+	wmf_stream_printf (API,out,"<text x=\"%f\" y=\"%f\" ", pt.x, pt.y);
 
 	wmf_stream_printf (API,out,"style=\"");
 
@@ -195,20 +205,15 @@ static void wmf_svg_draw_text (wmfAPI* API,wmfDrawText_t* draw_text)
 	wmf_stream_printf (API,out,"font-family:%s; ",font.family);
 	wmf_stream_printf (API,out,"font-style:%s; ", font.style);
 	wmf_stream_printf (API,out,"font-weight:%s; ",font.weight);
-
 	wmf_stream_printf (API,out,"font-size:%f; ",font_height);
-
+	wmf_stream_printf (API,out,"text-anchor:%s; ",text_anchor_style);
+	wmf_stream_printf (API,out,"dominant-baseline:%s; ",dominant_baseline_style);
 	wmf_stream_printf (API,out,"fill:%s",svg_color_closest (WMF_DC_TEXTCOLOR (draw_text->dc)));
 
-/*	wmf_stream_printf (API,out,"\"><tspan rotate=\"%f\"\n\t>",(float) (theta * 180 / PI));
- */	wmf_stream_printf (API,out,"\" transform=\"matrix(");
-	wmf_stream_printf (API,out,"%f %f %f %f ",cos_theta,sin_theta,-sin_theta,cos_theta);
-	wmf_stream_printf (API,out,"%f %f)\"\n\t>",pt.x,pt.y);
+	wmf_stream_printf (API,out,"\" transform=\"rotate(%f, %f, %f)\"\n\t>", angle_degrees, pt.x, pt.y);
 
 	wmf_stream_printf (API,out,"%s",draw_text->str);
-
-/*	wmf_stream_printf (API,out,"</tspan></text>\n");
- */	wmf_stream_printf (API,out,"</text>\n");
+	wmf_stream_printf (API,out,"</text>\n");
 }
 
 static void wmf_svg_udata_init (wmfAPI* API,wmfUserData_t* user_data)
