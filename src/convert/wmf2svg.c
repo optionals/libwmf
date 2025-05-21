@@ -161,8 +161,12 @@ int wmf2svg_draw (PlotData* pdata)
 	float base_height_from_bbox = ddata->bbox.BR.y - ddata->bbox.TL.y;
 
 	// Ensure base dimensions are positive to prevent errors in scaling logic.
-	if (base_width_from_bbox <= 0) base_width_from_bbox = 1.0f;
-	if (base_height_from_bbox <= 0) base_height_from_bbox = 1.0f;
+	if (base_width_from_bbox <= 0.0f) { // Explicitly check against 0.0f
+		base_width_from_bbox = 1.0f;
+	}
+	if (base_height_from_bbox <= 0.0f) { // Explicitly check against 0.0f
+		base_height_from_bbox = 1.0f;
+	}
 	
 	// The wmf_size() function is NOT used here to determine base_width/base_height
 	// as we want the SVG canvas to be based on the actual content extents (bbox).

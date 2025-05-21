@@ -40,60 +40,77 @@ static void wmf_svg_device_close (wmfAPI* API)
 /* This is called from the beginning of each play for initial page setup
  */
 static void wmf_svg_device_begin (wmfAPI* API)
-{	wmf_svg_t* ddata = WMF_SVG_GetData (API);
+{
+    wmf_svg_t* ddata = WMF_SVG_GetData (API);
+    wmfStream* out = ddata->out;
 
-	wmfStream* out = ddata->out;
+    WMF_DEBUG (API,"~~~~~~~~wmf_[svg_]device_begin");
 
-	WMF_DEBUG (API,"~~~~~~~~wmf_[svg_]device_begin");
+    if (out == 0) return;
 
-	if (out == 0) return;
+    if ((out->reset (out->context)) && ((API->flags & WMF_OPT_IGNORE_NONFATAL) == 0))
+    {
+        WMF_ERROR (API,"unable to reset output stream!");
+        API->err = wmf_E_DeviceError;
+        return;
+    }
 
-	if ((out->reset (out->context)) && ((API->flags & WMF_OPT_IGNORE_NONFATAL) == 0))
-	{	WMF_ERROR (API,"unable to reset output stream!");
-		API->err = wmf_E_DeviceError;
-		return;
-	}
+    // Fallback for ddata->width and ddata->height if not set by wmf2svg_draw
+    // This part should ideally rely on positive bbox spans from wmf2svg_draw's logic
+    if ((ddata->width == 0) || (ddata->height == 0))
+    {
+        float fallback_width = ddata->bbox.BR.x - ddata->bbox.TL.x;
+        float fallback_height = ddata->bbox.BR.y - ddata->bbox.TL.y;
 
-	if ((ddata->bbox.BR.x <= ddata->bbox.TL.x) || (ddata->bbox.BR.y <= ddata->bbox.TL.y))
-	{	WMF_ERROR (API,"~~~~~~~~wmf_[svg_]device_begin: bounding box has null or negative size!");
-		API->err = wmf_E_Glitch;
-		return;
-	}
+        if (fallback_width <= 0.0f) fallback_width = 1.0f;
+        if (fallback_height <= 0.0f) fallback_height = 1.0f;
+        
+        if (ddata->width == 0) ddata->width  = (unsigned int) ceil (fallback_width);
+        if (ddata->height == 0) ddata->height = (unsigned int) ceil (fallback_height);
+    }
+    
+    // Ensure ddata->width and ddata->height are at least 1 if they somehow ended up zero
+    if (ddata->width == 0) ddata->width = 1;
+    if (ddata->height == 0) ddata->height = 1;
 
-	if ((ddata->width == 0) || (ddata->height == 0))
-	{	ddata->width  = (unsigned int) ceil (ddata->bbox.BR.x - ddata->bbox.TL.x);
-		ddata->height = (unsigned int) ceil (ddata->bbox.BR.y - ddata->bbox.TL.y);
-	}
+    // Robustly calculate viewBox dimensions
+    float viewbox_x = ddata->bbox.TL.x;
+    float viewbox_y = ddata->bbox.TL.y;
+    float viewbox_width = ddata->bbox.BR.x - viewbox_x; 
+    float viewbox_height = ddata->bbox.BR.y - viewbox_y;
 
-	float viewbox_x = ddata->bbox.TL.x;
-	float viewbox_y = ddata->bbox.TL.y;
-	float viewbox_width = ddata->bbox.BR.x - ddata->bbox.TL.x;
-	float viewbox_height = ddata->bbox.BR.y - ddata->bbox.TL.y;
+    if (viewbox_width <= 0.0f) {
+        viewbox_width = 1.0f;
+    }
+    if (viewbox_height <= 0.0f) {
+        viewbox_height = 1.0f;
+    }
 
-	wmf_stream_printf (API,out,"<?xml version=\"1.0\" standalone=\"no\"?>\n");
+    // Determine SVG version string for the output
+    const char* svg_version_str = "1.1"; // Default
+    const char* svg_doctype_public = "-//W3C//DTD SVG 1.1//EN";
+    const char* svg_doctype_system = "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd";
 
-	/* ddata->version_string is set by wmf2svg_draw from pdata->svg_version.
-	   Default is "1.1" as set in wmf2svg_init. */
-	if (ddata->version_string && strcmp(ddata->version_string, "1.0") == 0)
-	{
-		wmf_stream_printf (API,out,"<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 20001102//EN\"\n");
-		wmf_stream_printf (API,out,"\"http://www.w3.org/TR/2000/CR-SVG-20001102/DTD/svg-20001102.dtd\">\n");
-		wmf_stream_printf (API,out,"<svg width=\"%u\" height=\"%u\" viewBox=\"%f %f %f %f\" version=\"1.0\"\n",
-		                   ddata->width, ddata->height, viewbox_x, viewbox_y, viewbox_width, viewbox_height);
-	}
-	else /* SVG 1.1 or default */
-	{
-		wmf_stream_printf (API,out,"<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\"\n");
-		wmf_stream_printf (API,out,"\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n");
-		wmf_stream_printf (API,out,"<svg width=\"%u\" height=\"%u\" viewBox=\"%f %f %f %f\" version=\"1.1\"\n",
-		                   ddata->width, ddata->height, viewbox_x, viewbox_y, viewbox_width, viewbox_height);
-	}
+    if (ddata->version_string && strcmp(ddata->version_string, "1.0") == 0) {
+        svg_version_str = "1.0";
+        svg_doctype_public = "-//W3C//DTD SVG 20001102//EN"; // Older SVG 1.0 DTD
+        svg_doctype_system = "http://www.w3.org/TR/2000/CR-SVG-20001102/DTD/svg-20001102.dtd";
+    }
 
-	wmf_stream_printf (API,out,"\txmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\">\n");
+    wmf_stream_printf (API,out,"<?xml version=\"1.0\" standalone=\"no\"?>\n");
+    wmf_stream_printf (API,out,"<!DOCTYPE svg PUBLIC \"%s\"\n", svg_doctype_public);
+    wmf_stream_printf (API,out,"\"%s\">\n", svg_doctype_system);
 
-	if (ddata->Description)
-	{	wmf_stream_printf (API,out,"<desc>%s</desc>\n",ddata->Description);
-	}
+    wmf_stream_printf (API,out,"<svg width=\"%u\" height=\"%u\" viewBox=\"%f %f %f %f\" version=\"%s\"\n",
+                       ddata->width, ddata->height,
+                       viewbox_x, viewbox_y, viewbox_width, viewbox_height,
+                       svg_version_str);
+    wmf_stream_printf (API,out,"\txmlns:sodipodi=\"http://sodipodi.sourceforge.net/DTD/sodipodi-0.dtd\">\n");
+
+    if (ddata->Description)
+    {
+        wmf_stream_printf (API,out,"<desc>%s</desc>\n",ddata->Description);
+    }
 }
 
 /* This is called from the end of each play for page termination
