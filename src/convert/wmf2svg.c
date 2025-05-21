@@ -228,8 +228,11 @@ int wmf2svg_draw (PlotData* pdata)
 		IC.prefix = (char*) malloc (strlen (pdata->wmf_filename) + 1);
 		if (IC.prefix)
 		{	strcpy (IC.prefix,pdata->wmf_filename);
-			if (wmf_strstr (pdata->wmf_filename,".wmf"))
-			{	IC.prefix[strlen (pdata->wmf_filename)-4] = 0;
+			// Safely remove .wmf suffix if present
+			char* suffix_ptr = strstr(IC.prefix, ".wmf");
+			// Check if ".wmf" was found and if it's actually at the end of the string
+			if (suffix_ptr != NULL && suffix_ptr[4] == '\0') { 
+				*suffix_ptr = '\0'; // Null-terminate at the start of ".wmf"
 			}
 			ddata->image.context = (void*) (&IC);
 			ddata->image.name = image_name;
