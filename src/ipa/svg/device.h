@@ -79,10 +79,13 @@ static void wmf_svg_device_begin (wmfAPI* API)
     float viewbox_width = ddata->bbox.BR.x - viewbox_x; 
     float viewbox_height = ddata->bbox.BR.y - viewbox_y;
 
-    if (viewbox_width <= 0.0f) {
+    // Robust sanitization for viewBox width
+    if (isnan(viewbox_width) || isinf(viewbox_width) || viewbox_width <= 0.0f) {
         viewbox_width = 1.0f;
     }
-    if (viewbox_height <= 0.0f) {
+
+    // Robust sanitization for viewBox height
+    if (isnan(viewbox_height) || isinf(viewbox_height) || viewbox_height <= 0.0f) {
         viewbox_height = 1.0f;
     }
 

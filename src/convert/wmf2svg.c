@@ -160,11 +160,13 @@ int wmf2svg_draw (PlotData* pdata)
 	float base_width_from_bbox = ddata->bbox.BR.x - ddata->bbox.TL.x;
 	float base_height_from_bbox = ddata->bbox.BR.y - ddata->bbox.TL.y;
 
-	// Ensure base dimensions are positive to prevent errors in scaling logic.
-	if (base_width_from_bbox <= 0.0f) { // Explicitly check against 0.0f
+	// Robust sanitization for width
+	if (isnan(base_width_from_bbox) || isinf(base_width_from_bbox) || base_width_from_bbox <= 0.0f) {
 		base_width_from_bbox = 1.0f;
 	}
-	if (base_height_from_bbox <= 0.0f) { // Explicitly check against 0.0f
+
+	// Robust sanitization for height
+	if (isnan(base_height_from_bbox) || isinf(base_height_from_bbox) || base_height_from_bbox <= 0.0f) {
 		base_height_from_bbox = 1.0f;
 	}
 	
